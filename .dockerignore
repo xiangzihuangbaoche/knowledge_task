@@ -1,0 +1,7 @@
+.git
+.env
+.streamlit
+__pycache__
+.venv
+cache
+results

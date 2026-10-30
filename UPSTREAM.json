@@ -1,0 +1,38 @@
+{
+  "source": "https://github.com/AkariAsai/OpenScholar",
+  "observed_head": "0e9b8fb912273d3dae39e593da86e4f6d3bf8de1",
+  "retrieved": "2026-10-30",
+  "files": [
+    {
+      "path": "upstream/run.py",
+      "original_blob_sha": "6b9765e1d1a4bb502ba9d2d00da8eb749a2442da"
+    },
+    {
+      "path": "upstream/requirements.txt",
+      "original_blob_sha": "68f8242366db44dd07cb53287f84d73bcfd735b7"
+    },
+    {
+      "path": "upstream/LICENSE",
+      "original_blob_sha": "261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64"
+    },
+    {
+      "path": "upstream/src/open_scholar.py",
+      "original_blob_sha": "46a582b5c3a718ff104f046012d9a9ae8cceb0a2"
+    },
+    {
+      "path": "upstream/src/instructions.py",
+      "original_blob_sha": "d8f68e00dfe8ae7967ce97582970f9b81b01a5a0"
+    },
+    {
+      "path": "upstream/src/utils.py",
+      "original_blob_sha": "47cee54a38d3837435ed542f4b787a5c22feac2a"
+    },
+    {
+      "path": "upstream/src/use_search_apis.py",
+      "original_blob_sha": "20a8cdc9b51be3639488fedad743972a08d603f0"
+    }
+  ],
+  "modifications": [
+    "Optional vllm imports in upstream/run.py and upstream/src/open_scholar.py"
+  ]
+}
