@@ -15,6 +15,8 @@ def synthesize(question, contexts, feedback=False, attribution=True):
     # Upstream reads S2_API_KEY at import time, including supplied-context mode.
     os.environ.setdefault("S2_API_KEY", "")
     from openai import OpenAI
+    import nltk
+    nltk.data.path.insert(0, str(ROOT / "nltk_data"))
     from src.open_scholar import OpenScholar
     client = OpenAI(api_key=key, timeout=90, max_retries=2)
     # Kept within upstream's supported model/cost table.

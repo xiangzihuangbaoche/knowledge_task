@@ -1,7 +1,6 @@
 from tqdm import tqdm
 import os
 import re
-import spacy
 from src.use_search_apis import search_paper_via_query, retrieve_pes2o_passages
 
 import numpy as np
@@ -12,9 +11,8 @@ try:
 except ImportError:
     vllm = None  # API-only deployment; local inference still requires vllm.
 import src.instructions as instructions
-from FlagEmbedding import FlagReranker
 
-nlp = spacy.load('en_core_web_sm')
+# API adapter does not use spaCy or a local FlagEmbedding reranker.
 
 # To compute API costs based on October 2023 pricing available at https://openai.com/ja-JP/api/pricing/
 price_per_million = {"gpt-4o": 2.50, "gpt-4o-2024-08-06": 2.50, "gpt-4o-2024-05-13": 5.00, "gpt-4o-mini": 0.15, "gpt-4o-mini-2024-07-18": 0.15, "gpt-4-turbo": 10.0, "gpt-3.5-turbo-0125": 0.50} 

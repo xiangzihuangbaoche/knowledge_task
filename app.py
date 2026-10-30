@@ -1,15 +1,20 @@
 import os
 import json
 import streamlit as st
-from retrieval import search
+from pathlib import Path
+from dotenv import load_dotenv
+from retrieval import search, search_europe_pmc
 from engine import synthesize
 
+load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
 st.set_page_config(page_title="OpenScholar 文献助手", page_icon="📚", layout="wide")
 st.title("OpenScholar 文献助手")
-st.caption("基于官方推理代码的 API 试运行版 · Semantic Scholar 摘要检索")
+st.caption("基于官方推理代码的 API 试运行版 · 科学文献摘要检索")
 st.info("尚未接入完整 OSDS 和专用重排序器。本版本不等同于论文实验配置。生成内容需核查原文。")
 with st.sidebar:
     st.header("运行设置")
+    source = st.selectbox("文献来源", ["Europe PMC（生命科学 / 生物医学）", "Semantic Scholar（跨学科，可能限流）"])
+    st.caption("Europe PMC 可无密钥检索；来源不同，覆盖范围也不同。")
     st.write("模型 API：" + ("已配置" if os.getenv("OPENAI_API_KEY") else "未配置"))
     st.write("检索 API：" + ("已配置" if os.getenv("S2_API_KEY") else "公共访问，可能限流"))
     year = st.text_input("发表年份筛选（可选）", placeholder="例如 2024-2026")
@@ -26,8 +31,8 @@ if st.button("检索文献", type="primary"):
         st.session_state.pop("evidence", None)
         try:
             with st.spinner("检索摘要…"):
-                contexts = search(query, os.getenv("S2_API_KEY", ""), year)
-            st.session_state.evidence = {"question": question, "query": query, "year": year, "contexts": contexts}
+                contexts = search_europe_pmc(query, year) if source.startswith("Europe") else search(query, os.getenv("S2_API_KEY", ""), year)
+            st.session_state.evidence = {"question": question, "query": query, "year": year, "source": source, "contexts": contexts}
         except Exception:
             st.error("检索失败：可能被限流或网络不可达。请稍后重试，或配置检索 API。")
 evidence = st.session_state.get("evidence")
@@ -42,9 +47,9 @@ if evidence:
             st.write(ctx["text"])
             if ctx["url"].startswith("https://"):
                 st.link_button("查看来源", ctx["url"])
-    if question != evidence["question"] or query != evidence["query"] or year != evidence["year"]:
+    if question != evidence["question"] or query != evidence["query"] or year != evidence["year"] or source != evidence["source"]:
         st.warning("问题或筛选条件已修改，请重新检索后生成。")
-    elif contexts and st.button("基于这些摘要生成回答（会调用付费模型 API）"):
+    elif contexts and st.button("基于这些摘要生成回答（会调用付费模型 API）", disabled=not bool(os.getenv("OPENAI_API_KEY", "").strip())):
         try:
             with st.spinner("综合证据并检查引用…"):
                 st.session_state.result = synthesize(question, contexts, feedback, attribution)

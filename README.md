@@ -1,9 +1,9 @@
 # OpenScholar 文献助手复刻尝试
 
-本仓库保留 [AkariAsai/OpenScholar](https://github.com/AkariAsai/OpenScholar) 的核心推理代码，添加中文 Streamlit 界面和摘要检索入口。当前阶段：代码与部署配置已准备；未完成真实模型调用及容器构建验证，不是已经上线的网站。
+本仓库保留 [AkariAsai/OpenScholar](https://github.com/AkariAsai/OpenScholar) 的核心推理代码，添加中文 Streamlit 界面和摘要检索入口。当前阶段：本机应用已启动并通过真实摘要检索及界面测试；未配置付费模型 API，未进行真实生成或容器构建验证，尚未公开上线。
 
 ## 当前支持
-- 用英文关键词检索 Semantic Scholar，按年份筛选，展示真实返回的摘要与来源。
+- 可选择 Europe PMC（生命科学 / 生物医学）或 Semantic Scholar（跨学科），按年份筛选，展示真实返回的摘要与来源。无密钥 Semantic Scholar 在本机测试时返回 429 限流，Europe PMC 实测可用。
 - 使用官方 OpenScholar 推理类，通过 GPT-4o API 综合证据。
 - 可选官方自反馈修订、引用检查，下载完整回答和证据 JSON。
 - 密钥仅从后端读取，不上传 GitHub、不保存在网页输入中。
@@ -38,9 +38,8 @@ python -m venv .venv
 . .venv/bin/activate
 # Windows PowerShell 改为: .venv/Scripts/Activate.ps1
 pip install -r requirements.txt
-python -m spacy download en_core_web_sm
 python -m nltk.downloader punkt punkt_tab
-# 将密钥配置为当前终端的环境变量；Streamlit 启动不会自动读取 .env。
+# 可将密钥配置为当前终端环境变量，或写入本地 .env；应用自动读取 .env，但不覆盖已有环境变量。
 streamlit run app.py --server.address 127.0.0.1
 ```
 
@@ -67,5 +66,10 @@ GitHub Actions 运行相同检查，不会自动部署，也不需要真实密�
 
 ## 上游与许可证
 核心代码位于 upstream/，保留 Apache-2.0 许可证。来源与每个原始文件 blob SHA 见 UPSTREAM.json。
-唯一的上游适配：run.py 和 src/open_scholar.py 的 vllm 导入改为可选，支持仅使用 API；其他核心文件保持原样。
+上游适配：run.py 和 src/open_scholar.py 的 vllm 导入改为可选；移除 src/open_scholar.py 中未使用的 spaCy 加载和 FlagReranker 导入，API 模式不安装它们。其他核心文件保持原样。
 这里没有修改或重写原始模型的提示词和修订算法，也未复制官方演示站的内部基础设施。
+
+## 本机启动与后续配置
+Windows 已有 .venv 时，可运行 ./start.ps1，地址为 http://127.0.0.1:8501 。关闭服务后重新执行即可启动。
+当前没有模型密钥也能检索摘要，生成按钮禁用。以后在本地 .env 中填写 OPENAI_API_KEY，重启服务，才会启用生成；不需要更改 GitHub 代码。不要把 .env 提交到仓库。
+本机已下载 NLTK punkt_tab 数据并验证官方引擎可导入。NLTK 下载器若因代理策略拒绝下载，不要关闭其安全检查；可通过 requests 从官方 nltk_data 仓库下载对应 tokenizer 压缩包，检查解压目标路径后放入 nltk_data/tokenizers。

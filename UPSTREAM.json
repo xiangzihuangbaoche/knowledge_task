@@ -33,6 +33,7 @@
     }
   ],
   "modifications": [
-    "Optional vllm imports in upstream/run.py and upstream/src/open_scholar.py"
+    "Optional vllm imports in upstream/run.py and upstream/src/open_scholar.py",
+    "Remove unused spaCy initialization and FlagReranker import from API inference module"
   ]
 }
