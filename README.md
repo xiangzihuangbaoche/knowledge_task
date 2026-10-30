@@ -9,7 +9,7 @@
 - 密钥仅从后端读取，不上传 GitHub、不保存在网页输入中。
 
 ## 与论文配置的区别
-本版本采用摘要检索，不含 2.36 亿段落 OSDS、专用稠密检索器、重排序器或网页全文检索。
+本版本默认采用摘要检索，可选官方专用重排序器；不含完整 OSDS 索引、专用稠密检索服务或网页全文检索。OSDS 连接适配器已提供，但必须配置真实检索服务地址。
 自反馈开启后会使用已有证据修订；补充检索关闭。因此不能声称达到论文评测效果。
 未部署官方 8B 权重；API 方案也属于论文支持的一类生成方式，但并非完整实验复现。
 引用编号从 0 开始，保持官方格式。引用检查不保证事实完全正确。
@@ -73,3 +73,25 @@ GitHub Actions 运行相同检查，不会自动部署，也不需要真实密�
 Windows 已有 .venv 时，可运行 ./start.ps1，地址为 http://127.0.0.1:8501 。关闭服务后重新执行即可启动。
 当前没有模型密钥也能检索摘要，生成按钮禁用。以后在本地 .env 中填写 OPENAI_API_KEY，重启服务，才会启用生成；不需要更改 GitHub 代码。不要把 .env 提交到仓库。
 本机已下载 NLTK punkt_tab 数据并验证官方引擎可导入。NLTK 下载器若因代理策略拒绝下载，不要关闭其安全检查；可通过 requests 从官方 nltk_data 仓库下载对应 tokenizer 压缩包，检查解压目标路径后放入 nltk_data/tokenizers。
+
+## 官方专用重排序器
+模型为 OpenSciLM/OpenScholar_Reranker，固定下载版本 f371d9d9a5c47d5b89dfa130d8d6fa303f27126e。
+用 Transformers 直接读取官方序列分类权重和 tokenizer，计算问题与段落的相关性 logits，与官方交叉编码器用途一致。未应用引用次数加权；不等于论文完整检索设置。
+
+```sh
+pip install -r requirements-reranker.txt
+python prepare_reranker.py
+```
+
+如果 Hugging Face Hub 的下载在代理环境中停滞，可运行 python prepare_reranker.py --direct，使用官方 HTTPS 文件流并核验权重 SHA256。权重约2.24GB，下载需时间。
+
+模型放在 cache/openscholar-reranker，不上传 GitHub。启动界面后，模型文件存在时默认开启重排序；候选检索增加到最多30条，逐段评分，保留前10条。使用英文检索词评分，建议研究问题也提供英文版本。分数不是正确概率。
+CPU 与 GPU 均支持；本机为避免大规模 CUDA 依赖下载，使用 CPU 版 PyTorch，batch=1。首次加载和评分需要等待。跨机器迁移时要重新安装依赖并下载模型。Docker 默认镜像不包含可选重排序依赖；需将 Dockerfile 的安装清单改为 requirements-reranker.txt 后重新构建，并预下载或挂载模型缓存。
+
+## OSDS 连接入口（完整数据服务尚未部署）
+在后端 .env 中配置 OSDS_SEARCH_URL，例如你自己服务器的 http://127.0.0.1:9000/search；这里的地址只是示例，程序不会自动创建这个服务。
+重启应用后，在来源中选择 OSDS。适配器 POST query、domains=pes2o、n_docs，支持：
+- 官方响应：results.passages 与 results["pes2o IDs"] 两个等长列表。没有标题元数据时明确显示 CorpusID 和标题待补充，不伪造论文标题或链接。
+- 扩展响应：documents 列表，每项包含 text，可选 title、url、year、citation_counts。
+
+当前 OSDS 适配器不支持年份筛选，填写年份时明确报错。OSDS 服务部署需依照上游 retriever/README.md 配置数据、查询编码器和索引。语料与编码器必须匹配，不能用其他模型随意查询现成索引。

@@ -57,3 +57,32 @@ def search_europe_pmc(query, year="", limit=10, session=None):
                         "citation_counts": int(paper.get("citedByCount") or 0),
                         "source": "Europe PMC"})
     return results
+
+def search_osds(query, endpoint, year="", limit=50, session=None):
+    """Adapt official PES2O search response; requires a real hosted index."""
+    if not endpoint.strip():
+        raise ValueError("尚未配置 OSDS_SEARCH_URL，请先部署 OSDS 检索服务。")
+    if year.strip():
+        raise ValueError("当前 OSDS 适配器不支持年份筛选，请清空年份。")
+    if session is None:
+        import requests
+        session = requests
+    response = session.post(endpoint, json={"query": query, "domains": "pes2o", "n_docs": limit}, timeout=120)
+    response.raise_for_status()
+    payload = response.json()
+    results = payload.get("results", {})
+    if "documents" in payload:
+        contexts = []
+        for item in payload["documents"]:
+            if item.get("text"):
+                contexts.append({"title": item.get("title") or "OSDS 段落（标题未提供）",
+                                 "text": item["text"], "url": item.get("url") or "",
+                                 "year": item.get("year"), "citation_counts": item.get("citation_counts") or 0,
+                                 "source": "OSDS"})
+        return contexts[:limit]
+    passages, ids = results.get("passages"), results.get("pes2o IDs")
+    if not isinstance(passages, list) or not isinstance(ids, list) or len(passages) != len(ids):
+        raise ValueError("OSDS 服务响应格式不匹配，需要 passages 与 pes2o IDs 列表。")
+    return [{"title": f"OSDS 段落 · CorpusID {pid}（标题待补充）", "text": passage,
+             "url": "", "year": None, "corpus_id": str(pid), "citation_counts": 0,
+             "source": "OSDS"} for passage, pid in zip(passages, ids) if isinstance(passage, str) and passage.strip()][:limit]

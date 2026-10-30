@@ -3,17 +3,23 @@ import json
 import streamlit as st
 from pathlib import Path
 from dotenv import load_dotenv
-from retrieval import search, search_europe_pmc
+from retrieval import search, search_europe_pmc, search_osds
+from reranking import rerank, MODEL_DIR
 from engine import synthesize
 
 load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
 st.set_page_config(page_title="OpenScholar 文献助手", page_icon="📚", layout="wide")
 st.title("OpenScholar 文献助手")
 st.caption("基于官方推理代码的 API 试运行版 · 科学文献摘要检索")
-st.info("尚未接入完整 OSDS 和专用重排序器。本版本不等同于论文实验配置。生成内容需核查原文。")
+st.info("支持官方专用重排序器；完整 OSDS 需另配检索服务。本版本不等同于论文实验配置。生成内容需核查原文。")
 with st.sidebar:
     st.header("运行设置")
-    source = st.selectbox("文献来源", ["Europe PMC（生命科学 / 生物医学）", "Semantic Scholar（跨学科，可能限流）"])
+    source = st.selectbox("文献来源", ["Europe PMC（生命科学 / 生物医学）", "Semantic Scholar（跨学科，可能限流）", "OSDS（需配置检索服务）"])
+    osds_url = os.getenv("OSDS_SEARCH_URL", "")
+    st.write("OSDS 服务：" + ("已填写地址，需验证连通" if osds_url else "未配置"))
+    reranker_ready = (Path(os.getenv("RERANKER_MODEL_PATH") or MODEL_DIR) / "model.safetensors").is_file()
+    use_reranker = st.checkbox("使用官方重排序器", value=reranker_ready, disabled=not reranker_ready)
+    st.caption("重排序器权重：" + ("已下载；首次运行需加载" if reranker_ready else "未下载"))
     st.caption("Europe PMC 可无密钥检索；来源不同，覆盖范围也不同。")
     st.write("模型 API：" + ("已配置" if os.getenv("OPENAI_API_KEY") else "未配置"))
     st.write("检索 API：" + ("已配置" if os.getenv("S2_API_KEY") else "公共访问，可能限流"))
@@ -30,24 +36,37 @@ if st.button("检索文献", type="primary"):
         st.session_state.pop("result", None)
         st.session_state.pop("evidence", None)
         try:
-            with st.spinner("检索摘要…"):
-                contexts = search_europe_pmc(query, year) if source.startswith("Europe") else search(query, os.getenv("S2_API_KEY", ""), year)
-            st.session_state.evidence = {"question": question, "query": query, "year": year, "source": source, "contexts": contexts}
+            with st.spinner("检索文献段落…"):
+                limit = 30 if use_reranker else 10
+                if source.startswith("OSDS"):
+                    contexts = search_osds(query, osds_url, year, limit)
+                elif source.startswith("Europe"):
+                    contexts = search_europe_pmc(query, year, limit)
+                else:
+                    contexts = search(query, os.getenv("S2_API_KEY", ""), year, limit)
+            if use_reranker and contexts:
+                with st.spinner("官方重排序器正在评分，CPU 首次加载可能需要一些时间…"):
+                    contexts = rerank(query, contexts)
+            st.session_state.evidence = {"question": question, "query": query, "year": year, "source": source, "reranked": use_reranker, "contexts": contexts}
+        except ValueError as exc:
+            st.error(str(exc))
         except Exception:
-            st.error("检索失败：可能被限流或网络不可达。请稍后重试，或配置检索 API。")
+            st.error("检索或重排序失败：请检查服务连通性、模型依赖及运行日志。")
 evidence = st.session_state.get("evidence")
 if evidence:
     contexts = evidence["contexts"]
-    st.subheader(f"已获取 {len(contexts)} 篇有摘要的文献")
+    st.subheader(f"已获取 {len(contexts)} 条文献证据")
     if not contexts:
         st.warning("未获得可用摘要，请更换检索词。")
     for i, ctx in enumerate(contexts):
         # Upstream uses zero-based reference IDs.
         with st.expander(f"[{i}] {ctx['title']} · {ctx['year']}"):
+            if "rerank_score" in ctx:
+                st.caption(f"相关性分数：{ctx['rerank_score']:.3f}（不是正确概率）")
             st.write(ctx["text"])
             if ctx["url"].startswith("https://"):
                 st.link_button("查看来源", ctx["url"])
-    if question != evidence["question"] or query != evidence["query"] or year != evidence["year"] or source != evidence["source"]:
+    if question != evidence["question"] or query != evidence["query"] or year != evidence["year"] or source != evidence["source"] or use_reranker != evidence.get("reranked", False):
         st.warning("问题或筛选条件已修改，请重新检索后生成。")
     elif contexts and st.button("基于这些摘要生成回答（会调用付费模型 API）", disabled=not bool(os.getenv("OPENAI_API_KEY", "").strip())):
         try:
